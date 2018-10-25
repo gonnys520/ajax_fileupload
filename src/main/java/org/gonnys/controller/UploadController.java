@@ -36,44 +36,6 @@ public class UploadController {
 	public void uploadAjax() {
 	}
 	
-	
-	@GetMapping("/viewfile/{fileName}")
-	@ResponseBody
-	public ResponseEntity <byte[]> viewFile(@PathVariable("fileName") String fileName) {
-		
-		
-		log.info("FileName: " + fileName);
-		
-		//파일이름 컷팅
-		String fName = fileName.substring(0, fileName.lastIndexOf("_"));
-		log.info("Fname :" + fName);
-		
-		//확장자 컷팅
-		String ext = fileName.substring(fileName.lastIndexOf("_") +1);
-		log.info("ext: " + ext);
-		
-		String total = fName + "." + ext;
-		
-		ResponseEntity<byte[]> result = null;
-		
-		try {
-			
-			File target = new File("C:\\upload\\" + total);
-			
-			HttpHeaders header = new HttpHeaders();
-			header.add("Content-type", Files.probeContentType(target.toPath()));
-			
-			byte[] arr = FileCopyUtils.copyToByteArray(target);
-			result = new ResponseEntity<>(arr,header,HttpStatus.OK);
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	
-		return result;
-	}
-	
-
 	@PostMapping(value = "/upload", produces = "application/json; charset=UTF-8")
 	@ResponseBody
 	public List<UploadDTO> upload(MultipartFile[] files) {
@@ -117,5 +79,42 @@ public class UploadController {
 
 		return result;
 	}// upload close
+	
+	@GetMapping("/viewfile/{fileName}")
+	@ResponseBody
+	public ResponseEntity <byte[]> viewFile(@PathVariable("fileName") String fileName) {
+		
+		
+		log.info("FileName: " + fileName);
+		
+		//파일이름 컷팅
+		String fName = fileName.substring(0, fileName.lastIndexOf("_"));
+		log.info("Fname :" + fName);
+		
+		//확장자 컷팅
+		String ext = fileName.substring(fileName.lastIndexOf("_") +1);
+		log.info("ext: " + ext);
+		
+		String total = fName + "." + ext;
+		
+		ResponseEntity<byte[]> result = null;
+		
+		try {
+			
+			File target = new File("C:\\upload\\" + total);
+			
+			HttpHeaders header = new HttpHeaders();
+			header.add("Content-type", Files.probeContentType(target.toPath()));
+			
+			byte[] arr = FileCopyUtils.copyToByteArray(target);
+			result = new ResponseEntity<>(arr,header,HttpStatus.OK);
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	
+		return result;
+	}
+	
 
 }// controller close
