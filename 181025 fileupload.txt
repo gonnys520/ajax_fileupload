@@ -1,0 +1,571 @@
+
+[Ajax 파일 업로드]
+
+
+1. legarcy project make
+2. pom.xml lombok 추가,log4j 추가, java version 1.8, spring framework version 5.1.0, javax.servlet 3.1.0 변경
+3. web.xml에 version 3.1.0으로 변경 및 multipart-config 추가
+3-1.
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+	id="WebApp_ID" version="3.1">
+3-2. </servlet> 전에 multipart 추가
+		<multipart-config>
+			<location>C:\\upload\\temp</location>
+			<max-file-size>20971520</max-file-size> <!-- 20MB 사이즈 파일 업로드 가능 -->
+			<max-request-size>20971520</max-request-size> <!-- Total 20MB 파일들 업로드 가능 -->
+		</multipart-config>
+4. servlet-context.xml beans에 multipartResolver 추가
+	<beans:bean id="multipartResolver"
+	class="org.springframework.web.multipart.support.StandardServletMultipartResolver">
+	</beans:bean>
+
+5. c:\\upload 폴더, c:\\upload\\temp 폴더 생성
+
+6. <form> 방식의 파일 업로드 
+controller 패키지 안에 UploadController class 생성
+package org.gonnys.controller;
+
+@Controller
+@Log4j
+public class UploadController {
+
+	@GetMapping("/uploadinput")
+	public void uploadInput() {
+		
+		log.info("upload form");
+	}
+}
+
+7. WEB-INF/views/uploadinput.jsp 생성
+
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ page session="false"%>
+<html>
+<head>
+<title>Gonnys Upload files!</title>
+</head>
+<body>
+  <h1>upload test page</h1>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="files" multiple="multiple">
+  <button>Upload</button>
+  </form>
+</body>
+</html>
+
+
+8. MultipartFile 타입 방식의 파일 업로드
+UploadController code add
+package org.gonnys.controller;
+
+@Controller
+@Log4j
+public class UploadController {
+
+	@PostMapping("/upload")
+	public void upload(MultipartFile[] files) {
+		
+	for( MultipartFile file : files) {		
+		log.info(file.getOriginalFilename());//파일이름
+		log.info(file.getContentType());
+		log.info(file.getSize());
+
+File saveFile = new File("C:\\upload\\" + file.getOriginalFilename());		try {
+			file.transferTo(saveFile);//업로드 한 파일 데이터를 지정한 파일에 저장한다.
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} }
+
+	}
+}
+
+9. 썸네일 저장하기
+pom.xml에 thumbnailator 추가
+<!-- https://mvnrepository.com/artifact/net.coobird/thumbnailator -->
+<dependency>
+    <groupId>net.coobird</groupId>
+    <artifactId>thumbnailator</artifactId>
+    <version>0.4.8</version>
+</dependency>
+
+10. UploadController.java --> /uploadajax mapping 추가, UUID(중복막기위함) 추가, 썸네일 코드 add
+package org.gonnys.controller;
+
+@Controller
+@Log4j
+public class UploadController {
+
+	@PostMapping("/upload")
+	public void upload(MultipartFile[] files) {
+
+	@GetMapping("/uploadajax")
+	public void uploadAjax() {}
+		
+	for( MultipartFile file : files) {
+		
+		log.info(file.getOriginalFilename());
+		log.info(file.getContentType());
+		log.info(file.getSize());
+		
+		UUID uuid = UUID.randomUUID();//중복 막기 위함
+		String saveFileName = uuid.toString()+"_"+file.getOriginalFilename();
+		String thumbFileName = "s_" + saveFileName; //썸네일 이름
+				
+		
+		File saveFile = new File("C:\\upload\\" + saveFileName);
+		FileOutputStream thumbFile =null;
+		
+		try {
+			
+			thumbFile = new FileOutputStream("C:\\upload\\" + thumbFileName);
+			
+			Thumbnailator.createThumbnail(file.getInputStream(), thumbFile ,100,100);
+			
+			thumbFile.close(); //썸네일 파일이 내 드라이브에 저장
+			
+			file.transferTo(saveFile);
+			
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 	
+	}
+    }
+}
+
+11. uploadajax.jsp 생성
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+
+<h1>Ajax Upload page</h1>
+
+<input type='file' id='files' multiple="multiple">
+
+<button id='btn'>upload</button>
+
+<script
+  src="https://code.jquery.com/jquery-3.3.1.min.js"
+  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+  crossorigin="anonymous"></script> <!-- jquery cdn minified…. 클론용 -->
+  
+  <script>
+  
+  $("#btn").on("click", function(e){
+
+  var formData = new FormData(); //메모리상에만 생기는 폼
+
+	  var filesObj = $("#files");
+	  console.log(filesObj);
+
+  var files = filesObj[0].files; //0번째가 원래 데이타
+for( var i= 0; i <files.length; i++){
+		  
+		  formData.append("files", files[i]);
+	  }
+	  
+	  $.ajax({ //ajax를 통해 foamdata 자체를 전송
+		  url:"/upload",
+		  processData: false,
+		  contentType: false,
+		  data: formData,
+		  type:"POST",
+		  success:function(result){
+			  alert(result);
+		  }
+	  })
+  })
+
+
+  })
+  </script>
+</body>
+</html>
+
+
+12. 업로드된 파일의 데이터 반환
+pom.xml jackson maven 추가
+<!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.9.7</version>
+		</dependency>
+		
+		<dependency>
+			<groupId>com.fasterxml.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-xml</artifactId>
+			<version>2.9.7</version>
+		</dependency>
+
+
+13. org.gonnys.domain package생성 및 UploadDTO class 생성
+package org.gonnys.domain;
+
+//db쪽이 아니어서 VO가 아닌 DTO
+@Data
+@AllArgsConstructor
+public class UploadDTO {
+
+	private String uploadName;
+	private String originName;
+	private String thumbName;
+	private String ext;
+}
+
+14. UploadController.java 에서 UploadDTO의 리스트를 반환하는 구조로 변경
+package org.gonnys.controller;
+
+@Controller
+@Log4j
+public class UploadController {
+	
+
+	@GetMapping("/uploadinput")
+	public void uploadInput() {
+	}
+	
+	@GetMapping("/uploadajax")
+	public void uploadAjax() {
+	}
+	
+	@PostMapping(value = "/upload", produces = "application/json; charset=UTF-8")
+	@ResponseBody
+	public List<UploadDTO> upload(MultipartFile[] files) {
+
+		List<UploadDTO> result = new ArrayList<>();
+
+		for (MultipartFile file : files) {
+
+			log.info(file.getOriginalFilename());
+			log.info(file.getContentType());
+			log.info(file.getSize());
+
+			UUID uuid = UUID.randomUUID();
+
+			String saveFileName = uuid.toString() + "_" + file.getOriginalFilename();
+			String thumbFileName = "s_" + saveFileName;
+
+			File saveFile = new File("C:\\upload\\" + saveFileName);
+			FileOutputStream thumbFile = null;
+
+			try {
+				thumbFile = new FileOutputStream("C:\\upload\\" + thumbFileName);
+
+				Thumbnailator.createThumbnail(file.getInputStream(), thumbFile, 100, 100);
+				
+				thumbFile.close();
+
+				result.add(new UploadDTO(
+						saveFileName,
+						file.getOriginalFilename(),
+						thumbFileName.substring(0,thumbFileName.lastIndexOf(".")),
+						thumbFileName.substring(thumbFileName.lastIndexOf(".")+ 1)));
+				
+				file.transferTo(saveFile);
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+		} // for close
+
+		return result;
+	}// upload close
+}
+
+15. 썸네일 화면 출력
+UploadController.java에 /viewfile/{fileName} get mapping 추가
+
+@GetMapping("/viewFile/{fileName}")//다운로드
+	public byte[] viewFile(@PathVariable("fileName") String fileName) {//바이트의 배열 . 패스 웅엥웅: 경로 설정
+	
+	log.info("filename : " + fileName);
+	return null;
+	}
+
+16. URL상에서 '파일이름.확장자' 의 '.'을 받지 못하는 문제 해결 --> '.'을 '_'로 변경
+
+@GetMapping("/viewFile/{fileName}")//다운로드. '.'은 확장자를 못받음.
+	public byte[] viewFile(@PathVariable("fileName") String fileName) {//바이트의 배열 . 패스 웅엥웅: 경로 설정
+	
+	log.info("filename : " + fileName);
+	
+	String fName = fileName.substring(0,fileName.lastIndexOf("_"));//aaa_jpg
+	log.info("FName: " +fName);
+	String ext =  fileName.substring(fileName.lastIndexOf("_")+1); //확장자
+	log.info("ext : " + ext);
+	String total = fName + "." + ext; //오리지날 파일 이름
+	
+	try {
+		return FileCopyUtils.copyToByteArray(new File("C:\\upload\\" + total)); //바이트의 배열
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+		return null;
+	}
+	
+}
+
+17. 이미지가 아니고 유니코드가 나오는 문제 해결 --> ResponseEntity
+@Controller
+@Log4j
+public class UploadController {
+	
+	@GetMapping("/viewFile/{fileName}")//다운로드. '.'은 확장자를 못받음.
+	@ResponseBody//순수한 데이터 반환
+	public ResponseEntity<byte[]> viewFile(@PathVariable("fileName") String fileName) {//바이트의 배열 . 패스 웅엥웅: 경로 설정
+	
+	log.info("filename : " + fileName);
+	
+	String fName = fileName.substring(0,fileName.lastIndexOf("_"));//aaa_jpg
+	log.info("FName: " +fName);
+	String ext =  fileName.substring(fileName.lastIndexOf("_")+1); //확장자
+	log.info("ext : " + ext);
+	
+	String total = fName + "." + ext; //오리지날 파일 이름
+	
+	ResponseEntity<byte[]> result = null;
+	
+	try {
+		File target = new File("C:\\upload\\" + total);
+		
+		HttpHeaders header = new HttpHeaders();
+		header.add("Content-type", Files.probeContentType(target.toPath()));
+		
+		
+	
+		byte[] arr = FileCopyUtils.copyToByteArray(target); //바이트의 배열
+		result = new ResponseEntity<>(arr,header,HttpStatus.OK);
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+		
+	}
+	return result;
+	
+	}
+
+18. DTO의 확장자(ext)를 이미지 뿐만 아니라 다른 첨부파일도 받기 위해 String으로 변경
+
+package org.gonnys.domain;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+//db쪽이 아니어서 VO가 아닌 DTO
+@Data
+@AllArgsConstructor
+public class UploadDTO {
+
+	private String uploadName;
+	private String originName;
+	private String thumbName;
+	private String ext;
+}
+
+19. UploadController.java의 postmapping 변경
+	@PostMapping(value = "/upload", produces = "application/json; charset=UTF-8")
+	@ResponseBody
+	public List<UploadDTO> upload(MultipartFile[] files) {
+
+		List<UploadDTO> result = new ArrayList<>();
+
+		for (MultipartFile file : files) {
+
+			log.info(file.getOriginalFilename());
+			log.info(file.getContentType());
+			log.info(file.getSize());
+
+			UUID uuid = UUID.randomUUID();
+
+			String saveFileName = uuid.toString() + "_" + file.getOriginalFilename();
+			String thumbFileName = "s_" + saveFileName;
+
+			File saveFile = new File("C:\\upload\\" + saveFileName);
+			FileOutputStream thumbFile = null;
+
+			try {
+				thumbFile = new FileOutputStream("C:\\upload\\" + thumbFileName);
+
+				Thumbnailator.createThumbnail(file.getInputStream(), thumbFile, 100, 100);
+				
+				thumbFile.close();
+
+				result.add(new UploadDTO(
+						saveFileName,
+						file.getOriginalFilename(),
+						thumbFileName.substring(0,thumbFileName.lastIndexOf(".")),
+						thumbFileName.substring(thumbFileName.lastIndexOf(".")+ 1)));
+				
+				file.transferTo(saveFile);
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+		} // for close
+
+		return result;
+	}// upload close
+
+20. uploadajax.jsp의 thumbs div 추가 및 썸네일 출력
+
+<div class = "thumbs"></div> 추가
+
+<script>
+  
+  $("#btn").on("click", function(e){
+	  
+	  var thumbs = $(".thumbs");
+	  
+	  var formData = new FormData(); //메모리상에만 생기는 폼
+	  
+	  var filesObj = $("#files");
+	  console.log(filesObj);
+	  
+	  var files = filesObj[0].files; //0번째가 원래 데이타
+	  
+	  for( var i= 0; i <files.length; i++){
+		  
+		  formData.append("files", files[i]);
+	  }
+	  
+	  $.ajax({
+		  url:"/upload",
+		  processData: false,
+		  contentType: false,
+		  data: formData,
+		  type:"POST",
+		  success:function(result){
+			  
+			  console.log(result);
+			  
+			  var str ="";
+			  for(var i = 0; i < result.length; i++){
+				  
+				  var path = "/viewFile/"+result[i].thumbName+"_"+result[i].ext;
+				  
+				  str += "<img src='"+path+"'>";
+					 
+			  }
+			  thumbs.append(str);
+		  }
+	  })
+  })
+  </script>
+
+
+21. 썸네일 클릭시 화면 크게 보이기 (imgBox add 및 클릭 이벤트)
+
+
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+
+<h1>Ajax Upload page</h1>
+
+<input type='file' id='files' multiple="multiple">
+
+<button id='btn'>upload</button>
+
+<div class = "thumbs"></div>
+
+<style>
+.imgBox{
+width:100%;
+height:100vh;
+position:absolute;
+top:0px;
+left:0px;
+background:gray;
+display: none; 
+}
+</style>
+
+<div class = 'imgBox'>
+</div>
+
+<script
+  src="https://code.jquery.com/jquery-3.3.1.min.js"
+  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+  crossorigin="anonymous"></script> <!-- jquery cdn minified 클론용 -->
+  
+  <script>
+  $(".thumbs").on("click","img", function(e){
+	  var obj = $(this);
+	  console.log(obj);
+	  $(".imgBox").html("<img src='/viewFile/"+obj.attr("data-src")+"'>").show('slow');
+  });
+  
+  $(".imgBox").on("click", function(e){
+	  $(this).hide("slow");
+  })
+  
+  
+  $("#btn").on("click", function(e){
+	  
+	  var thumbs = $(".thumbs");
+	  
+	  var formData = new FormData(); //메모리상에만 생기는 폼
+	  
+	  var filesObj = $("#files");
+	  console.log(filesObj);
+	  
+	  var files = filesObj[0].files; //0번째가 원래 데이타
+	  
+	  for( var i= 0; i <files.length; i++){
+		  
+		  formData.append("files", files[i]);
+	  }
+	  
+	  $.ajax({ //ajax를 통해 foamdata 자체를 전송
+		  url:"/upload",
+		  processData: false,
+		  contentType: false,
+		  data: formData,
+		  type:"POST",
+		  success:function(result){
+			  
+			  console.log(result);
+			  
+			  var str ="";
+			  for(var i = 0; i < result.length; i++){
+				  
+				  var path = "/viewFile/"+result[i].thumbName+"_"+result[i].ext;
+				  var fileSrc = (result[i].thumbName+"_"+result[i].ext).substring(2);
+				  
+				  //섬네일 파일, 이름 출력
+				  str += "<div>"
+				  str += "<img data-src='"+fileSrc+"' src='"+path+"'>"; //path가 파일의 경로
+				  str += "<p>" +result[i].originName + "</p>";
+				  str += "</div>";
+					 
+			  }
+			  thumbs.append(str);
+		  }
+	  })
+  })
+  </script>
+
+</body>
+</html>
+
+
+
